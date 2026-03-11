@@ -354,6 +354,13 @@ function updateApiStatus(type) {
 function getScriptUrl() { return localStorage.getItem(KEY_SCRIPT) || ''; }
 function getClaudeKey() { return localStorage.getItem(KEY_CLAUDE) || ''; }
 
+// ═══ 날짜 헬퍼 (UTC→KST) ═══
+function toKSTDate(s) {
+  if (!s) return '';
+  try { return new Date(s).toLocaleDateString('sv-SE', {timeZone: 'Asia/Seoul'}); }
+  catch(e) { return String(s).substring(0, 10); }
+}
+
 // ═══ API 호출 헬퍼 ═══
 
 async function callScript(action, data) {
@@ -396,7 +403,7 @@ function renderEventSelect() {
   events.forEach(function(ev) {
     var opt = document.createElement('option');
     opt.value = ev['교육ID'];
-    var dateStr = ev['교육일자'] ? (' (' + String(ev['교육일자']).substring(0,10) + ')') : '';
+    var dateStr = ev['교육일자'] ? (' (' + toKSTDate(ev['교육일자']) + ')') : '';
     var countStr = ev['참가자수'] ? ' [' + ev['참가자수'] + '명]' : '';
     opt.textContent = ev['교육명'] + dateStr + countStr;
     sel.appendChild(opt);
@@ -729,7 +736,7 @@ window.generateAnnouncement = async function() {
 
   var userPrompt = '아래 교육 정보로 참가자 공지 메일을 작성해주세요.\n\n';
   userPrompt += '교육명: ' + (ev ? ev['교육명'] : '') + '\n';
-  userPrompt += '교육일자: ' + (ev ? String(ev['교육일자']).substring(0,10) : '') + '\n';
+  userPrompt += '교육일자: ' + (ev ? toKSTDate(ev['교육일자']) : '') + '\n';
   if (zoomLink) userPrompt += 'Zoom 링크: ' + zoomLink + '\n';
   if (extraInfo) userPrompt += '추가 안내사항: ' + extraInfo + '\n';
 
