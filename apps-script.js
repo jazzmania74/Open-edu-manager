@@ -79,6 +79,8 @@ function doGet(e) {
     switch (action) {
       case 'getEvents':
         return jsonResponse(getEvents());
+      case 'getEventsWithParticipants':
+        return jsonResponse(getEventsWithParticipants());
       default:
         return jsonResponse({ success: false, error: '알 수 없는 action: ' + action });
     }
@@ -105,6 +107,10 @@ function doPost(e) {
         return jsonResponse(updatePayment(body.eventId, body.email, body.paid, body.paidDate));
       case 'sendBulkEmail':
         return jsonResponse(sendBulkEmail(body.recipients, body.subject, body.htmlBody));
+      case 'prefillResponseSheetIds':
+        return jsonResponse(prefillResponseSheetIds());
+      case 'syncAllParticipants':
+        return jsonResponse(syncAllParticipants());
       default:
         return jsonResponse({ success: false, error: '알 수 없는 action: ' + action });
     }
@@ -120,6 +126,30 @@ function getEvents() {
   if (!sheet) return { success: false, error: '교육목록 탭이 없습니다.' };
   var rows = sheetToObjects(sheet);
   return { success: true, data: rows };
+}
+
+// ── 교육목록 + 참가자 수 (한 번에 로딩) ──
+
+function getEventsWithParticipants() {
+  var eventSheet = getSheetByName('교육목록');
+  if (!eventSheet) return { success: false, error: '교육목록 탭이 없습니다.' };
+  var evts = sheetToObjects(eventSheet);
+
+  var partSheet = getSheetByName('참가자');
+  var allParts = partSheet ? sheetToObjects(partSheet) : [];
+
+  // 교육별 참가자 수 계산
+  var countMap = {};
+  allParts.forEach(function(p) {
+    var eid = String(p['교육ID']);
+    countMap[eid] = (countMap[eid] || 0) + 1;
+  });
+
+  evts.forEach(function(ev) {
+    ev['참가자수'] = countMap[String(ev['교육ID'])] || 0;
+  });
+
+  return { success: true, data: evts };
 }
 
 // ── 새 교육 등록 ──
@@ -225,9 +255,9 @@ function syncParticipants(eventId) {
     }
   });
 
-  // 6) 새 참가자 추가
+  // 6) 새 참가자 배치 추가 (appendRow 대신 setValues 사용 — 훨씬 빠름)
   var partHeaders = getHeaders(partSheet);
-  var added = 0;
+  var newRows = [];
   for (var ri = 1; ri < responseData.length; ri++) {
     var row = responseData[ri];
     var email = String(row[emailCol] || '').trim();
@@ -253,11 +283,16 @@ function syncParticipants(eventId) {
     };
 
     var newRow = partHeaders.map(function(h) { return newData[h] || ''; });
-    partSheet.appendRow(newRow);
-    added++;
+    newRows.push(newRow);
+    existingEmails[email.toLowerCase()] = true;
   }
 
-  return { success: true, action: 'syncParticipants', added: added, total: responseData.length - 1 };
+  if (newRows.length > 0) {
+    var lastRow = partSheet.getLastRow();
+    partSheet.getRange(lastRow + 1, 1, newRows.length, newRows[0].length).setValues(newRows);
+  }
+
+  return { success: true, action: 'syncParticipants', added: newRows.length, total: responseData.length - 1 };
 }
 
 // ── 입금 상태 업데이트 ──
@@ -282,6 +317,151 @@ function updatePayment(eventId, email, paid, paidDate) {
     }
   }
   return { success: false, error: '참가자를 찾을 수 없습니다: ' + email };
+}
+
+// ── 응답시트ID 일괄 프리필 ──
+
+function prefillResponseSheetIds() {
+  var sheet = getSheetByName('교육목록');
+  if (!sheet) return { success: false, error: '교육목록 탭이 없습니다.' };
+  var headers = getHeaders(sheet);
+  var data = sheet.getDataRange().getValues();
+
+  var formIdCol = headers.indexOf('FormID');
+  var ridCol = headers.indexOf('응답시트ID');
+  if (formIdCol === -1 || ridCol === -1) return { success: false, error: '헤더를 확인하세요.' };
+
+  var filled = 0;
+  var errors = [];
+  for (var i = 1; i < data.length; i++) {
+    var formId = String(data[i][formIdCol]).trim();
+    var existing = String(data[i][ridCol]).trim();
+    if (!formId || (existing && existing !== '(연결안됨)')) continue;
+
+    try {
+      var form = FormApp.openById(formId);
+      var destId = form.getDestinationId();
+      sheet.getRange(i + 1, ridCol + 1).setValue(destId);
+      filled++;
+    } catch (err) {
+      errors.push({ row: i + 1, formId: formId, error: err.message });
+    }
+  }
+
+  return { success: true, action: 'prefillResponseSheetIds', filled: filled, errors: errors };
+}
+
+// ── 전체 교육 일괄 동기화 ──
+
+function syncAllParticipants() {
+  var eventSheet = getSheetByName('교육목록');
+  if (!eventSheet) return { success: false, error: '교육목록 탭이 없습니다.' };
+  var partSheet = getSheetByName('참가자');
+  if (!partSheet) return { success: false, error: '참가자 탭이 없습니다.' };
+
+  var settings = getSettings();
+  var nameCol = Number(settings['이름열'] || 2) - 1;
+  var phoneCol = Number(settings['전화열'] || 3) - 1;
+  var emailCol = Number(settings['메일열'] || 4) - 1;
+  var orgCol = Number(settings['소속열'] || 5) - 1;
+  var textCol = Number(settings['신청글열'] || 6) - 1;
+
+  var evHeaders = getHeaders(eventSheet);
+  var evData = eventSheet.getDataRange().getValues();
+  var formIdIdx = evHeaders.indexOf('FormID');
+  var ridIdx = evHeaders.indexOf('응답시트ID');
+  var eidIdx = evHeaders.indexOf('교육ID');
+
+  // 기존 참가자 이메일 세트 (교육ID+이메일)
+  var partHeaders = getHeaders(partSheet);
+  var existingParts = partSheet.getDataRange().getValues();
+  var existingKeys = {};
+  var partEidCol = partHeaders.indexOf('교육ID');
+  var partEmailCol = partHeaders.indexOf('이메일');
+  for (var ep = 1; ep < existingParts.length; ep++) {
+    var k = String(existingParts[ep][partEidCol]) + '|' + String(existingParts[ep][partEmailCol]).trim().toLowerCase();
+    existingKeys[k] = true;
+  }
+
+  var results = [];
+  var allNewRows = [];
+
+  for (var ei = 1; ei < evData.length; ei++) {
+    var eventId = String(evData[ei][eidIdx]);
+    var formId = String(evData[ei][formIdIdx]).trim();
+    var responseSheetId = String(evData[ei][ridIdx]).trim();
+
+    if (!formId) { results.push({ eventId: eventId, status: 'skip', reason: 'FormID 없음' }); continue; }
+
+    // 응답시트ID 없으면 Form에서 탐지
+    if (!responseSheetId || responseSheetId === '(연결안됨)') {
+      try {
+        var form = FormApp.openById(formId);
+        responseSheetId = form.getDestinationId();
+        eventSheet.getRange(ei + 1, ridIdx + 1).setValue(responseSheetId);
+      } catch (err) {
+        results.push({ eventId: eventId, status: 'error', reason: err.message });
+        continue;
+      }
+    }
+
+    // 응답시트 읽기
+    var responseSS;
+    try {
+      responseSS = SpreadsheetApp.openById(responseSheetId);
+    } catch (err) {
+      results.push({ eventId: eventId, status: 'error', reason: '응답시트 열기 실패' });
+      continue;
+    }
+    var responseSheet = responseSS.getSheets()[0];
+    var responseData = responseSheet.getDataRange().getValues();
+    if (responseData.length < 2) {
+      results.push({ eventId: eventId, status: 'ok', added: 0 });
+      continue;
+    }
+
+    var added = 0;
+    for (var ri = 1; ri < responseData.length; ri++) {
+      var row = responseData[ri];
+      var email = String(row[emailCol] || '').trim();
+      if (!email) continue;
+      var key = eventId + '|' + email.toLowerCase();
+      if (existingKeys[key]) continue;
+
+      var timestamp = row[0];
+      if (timestamp instanceof Date) {
+        timestamp = Utilities.formatDate(timestamp, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
+      }
+
+      var newRow = partHeaders.map(function(h) {
+        switch (h) {
+          case '교육ID': return eventId;
+          case '타임스탬프': return timestamp;
+          case '이름': return String(row[nameCol] || '').trim();
+          case '전화번호': return String(row[phoneCol] || '').trim();
+          case '이메일': return email;
+          case '소속': return String(row[orgCol] || '').trim();
+          case '신청글': return String(row[textCol] || '').trim();
+          default: return '';
+        }
+      });
+
+      allNewRows.push(newRow);
+      existingKeys[key] = true;
+      added++;
+    }
+
+    results.push({ eventId: eventId, status: 'ok', added: added });
+  }
+
+  // 배치 쓰기 (appendRow 대신 setValues로 한 번에 기록)
+  if (allNewRows.length > 0) {
+    var lastRow = partSheet.getLastRow();
+    partSheet.getRange(lastRow + 1, 1, allNewRows.length, allNewRows[0].length).setValues(allNewRows);
+  }
+
+  var totalAdded = allNewRows.length;
+  return { success: true, action: 'syncAllParticipants', totalAdded: totalAdded, details: results };
 }
 
 // ── 일괄 메일 발송 ──

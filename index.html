@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>공개교육 참가자 관리기</title>
-<script>const APP_VER='20260311a';if(localStorage.getItem('oem_ver')!==APP_VER){localStorage.setItem('oem_ver',APP_VER);location.reload(true)}</script>
+<script>const APP_VER='20260311b';if(localStorage.getItem('oem_ver')!==APP_VER){localStorage.setItem('oem_ver',APP_VER);location.reload(true)}</script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -176,6 +176,7 @@ tr:hover{background:#f8fafc}
     </select>
     <button class="btn btn-green" onclick="showAddEventModal()">+ 새 교육</button>
     <button class="btn btn-primary" onclick="syncParticipants()" id="syncBtn">🔄 동기화</button>
+    <button class="btn btn-orange" onclick="syncAllParticipants()" id="syncAllBtn" title="전체 교육 일괄 동기화">⚡ 전체 동기화</button>
   </div>
 
   <!-- 동기화 프로그레스 -->
@@ -359,8 +360,8 @@ async function callScript(action, data) {
   var url = getScriptUrl();
   if (!url) throw new Error('Apps Script URL을 먼저 설정하세요.');
 
-  if (!action || action === 'getEvents') {
-    var res = await fetch(url + '?action=getEvents');
+  if (!action || action === 'getEvents' || action === 'getEventsWithParticipants') {
+    var res = await fetch(url + '?action=' + (action || 'getEvents'));
     return await res.json();
   }
 
@@ -377,7 +378,8 @@ async function callScript(action, data) {
 async function loadEvents() {
   if (!getScriptUrl()) return;
   try {
-    var result = await callScript('getEvents');
+    var result = await callScript('getEventsWithParticipants');
+    if (!result.success) result = await callScript('getEvents');
     if (result.success) {
       events = result.data || [];
       renderEventSelect();
@@ -389,14 +391,17 @@ async function loadEvents() {
 
 function renderEventSelect() {
   var sel = document.getElementById('eventSelect');
+  var prev = sel.value;
   sel.innerHTML = '<option value="">-- 교육을 선택하세요 --</option>';
   events.forEach(function(ev) {
     var opt = document.createElement('option');
     opt.value = ev['교육ID'];
     var dateStr = ev['교육일자'] ? (' (' + String(ev['교육일자']).substring(0,10) + ')') : '';
-    opt.textContent = ev['교육명'] + dateStr;
+    var countStr = ev['참가자수'] ? ' [' + ev['참가자수'] + '명]' : '';
+    opt.textContent = ev['교육명'] + dateStr + countStr;
     sel.appendChild(opt);
   });
+  if (prev) sel.value = prev;
 }
 
 window.onEventChange = function() {
@@ -617,6 +622,76 @@ window.syncParticipants = async function() {
     progress.classList.remove('active');
     syncBtn.style.display = '';
     toast('동기화 오류: ' + e.message);
+  }
+};
+
+// ═══ 전체 동기화 ═══
+
+window.syncAllParticipants = async function() {
+  var syncAllBtn = document.getElementById('syncAllBtn');
+  var progress = document.getElementById('syncProgress');
+  var fill = document.getElementById('syncFill');
+  var text = document.getElementById('syncText');
+
+  syncAllBtn.style.display = 'none';
+  document.getElementById('syncBtn').style.display = 'none';
+  progress.classList.add('active');
+  fill.style.width = '0%';
+  fill.className = 'progress-fill';
+
+  var pct = 0;
+  text.textContent = '응답시트ID 확인 중...';
+
+  // 1단계: 응답시트ID 프리필 (빠른 동기화를 위해)
+  var interval = setInterval(function() {
+    pct += Math.random() * 5;
+    if (pct > 40) { clearInterval(interval); pct = 40; }
+    fill.style.width = pct + '%';
+  }, 300);
+
+  try {
+    await callScript('prefillResponseSheetIds', {});
+  } catch (e) { /* 무시 — 이미 채워져 있으면 에러 없음 */ }
+  clearInterval(interval);
+  fill.style.width = '45%';
+  text.textContent = '전체 교육 참가자 동기화 중...';
+
+  // 2단계: 전체 동기화
+  var interval2 = setInterval(function() {
+    pct += Math.random() * 6;
+    if (pct > 90) { clearInterval(interval2); pct = 90; }
+    fill.style.width = pct + '%';
+  }, 400);
+
+  try {
+    var result = await callScript('syncAllParticipants', {});
+    clearInterval(interval2);
+
+    if (result.success) {
+      fill.style.width = '100%';
+      fill.classList.add('done');
+      var details = result.details || [];
+      var okCount = details.filter(function(d){ return d.status === 'ok'; }).length;
+      text.textContent = '✅ 전체 동기화 완료! ' + result.totalAdded + '명 추가 (' + okCount + '개 교육 처리)';
+
+      // 이벤트 목록 + 참가자 새로고침
+      await loadEvents();
+      if (currentEventId) await loadParticipants(currentEventId);
+
+      setTimeout(function() {
+        progress.classList.remove('active');
+        syncAllBtn.style.display = '';
+        document.getElementById('syncBtn').style.display = '';
+      }, 3000);
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (e) {
+    clearInterval(interval2);
+    progress.classList.remove('active');
+    syncAllBtn.style.display = '';
+    document.getElementById('syncBtn').style.display = '';
+    toast('전체 동기화 오류: ' + e.message);
   }
 };
 
