@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>공개교육 참가자 관리기</title>
-<script>const APP_VER='20260312d';if(localStorage.getItem('oem_ver')!==APP_VER){localStorage.setItem('oem_ver',APP_VER);location.reload(true)}</script>
+<script>const APP_VER='20260312e';if(localStorage.getItem('oem_ver')!==APP_VER){localStorage.setItem('oem_ver',APP_VER);location.reload(true)}</script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -802,7 +802,7 @@ window.generateAnnouncement = async function() {
     aiText.textContent = 'AI가 공지문을 작성하고 있습니다... ' + Math.round(pct) + '%';
   }, 400);
 
-  var systemPrompt = '당신은 한국어 비즈니스 이메일 작성 전문가입니다. 공개교육 참가자에게 보내는 공지 메일 본문을 아래 형식 그대로 작성하세요. HTML 태그 없이 순수 텍스트로 작성하세요.\n\n[형식]\n안녕하세요?\n귀중한 시간을 내어 공개교육에 참가해주시기로 결정해주신 점 진심으로 감사드립니다.\n교육 일정 및 접속 정보를 안내해드리오니 참고하여 주시기 바랍니다.\n\n■ 교육 정보\n- 교육명: {교육명}\n- 교육일자: {교육일자(요일)}\n- 교육시간: {시간}\n\n■ Zoom 접속 정보\n아래의 Zoom 링크를 통해 접속하실 수 있습니다.\n{줌링크}\n수동으로 접속하시는 경우 다음 정보를 입력해주세요.\n- 회의 ID: {줌링크에서 추출}\n- 암호: {줌링크에서 추출}\n\n■ 추가 안내사항\n- 교육 시작 최소 15분 전 입장하시기를 권장합니다.\n- 마이크와 카메라 점검을 미리 진행해주시기 바랍니다.\n{추가안내}\n\n이번 교육이 여러분에게 의미 있는 학습 기회가 되기를 바랍니다. 교육에 대한 추가 문의사항이 있으시면 언제든지 연락주시기 바랍니다.\n\n감사합니다.\n나눔경영컨설팅 김종혁 드림';
+  var systemPrompt = '당신은 한국어 비즈니스 이메일 작성 전문가입니다. 공개교육 참가자에게 보내는 공지 메일 본문만 작성하세요. 제목줄(제목: ...)은 절대 포함하지 마세요. HTML 태그 없이 순수 텍스트로 작성하세요. 반드시 "안녕하세요?"로 시작하세요.\n\n[형식]\n안녕하세요?\n귀중한 시간을 내어 공개교육에 참가해주시기로 결정해주신 점 진심으로 감사드립니다.\n교육 일정 및 접속 정보를 안내해드리오니 참고하여 주시기 바랍니다.\n\n■ 교육 정보\n- 교육명: {교육명}\n- 교육일자: {교육일자(요일)}\n- 교육시간: {시간}\n\n■ Zoom 접속 정보\n아래의 Zoom 링크를 통해 접속하실 수 있습니다.\n{줌링크}\n수동으로 접속하시는 경우 다음 정보를 입력해주세요.\n- 회의 ID: {줌링크에서 추출}\n- 암호: {줌링크에서 추출}\n\n■ 추가 안내사항\n- 교육 시작 최소 15분 전 입장하시기를 권장합니다.\n- 마이크와 카메라 점검을 미리 진행해주시기 바랍니다.\n{추가안내}\n\n이번 교육이 여러분에게 의미 있는 학습 기회가 되기를 바랍니다. 교육에 대한 추가 문의사항이 있으시면 언제든지 연락주시기 바랍니다.\n\n감사합니다.\n나눔경영컨설팅 김종혁 드림';
 
   var userPrompt = '아래 정보로 공지 메일을 위 형식 그대로 작성해주세요. Zoom 링크의 URL 파라미터에서 회의ID와 암호를 추출하세요.\n\n';
   userPrompt += '교육명: ' + (ev ? ev['교육명'] : '') + '\n';
