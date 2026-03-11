@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>공개교육 참가자 관리기</title>
-<script>const APP_VER='20260311b';if(localStorage.getItem('oem_ver')!==APP_VER){localStorage.setItem('oem_ver',APP_VER);location.reload(true)}</script>
+<script>const APP_VER='20260312a';if(localStorage.getItem('oem_ver')!==APP_VER){localStorage.setItem('oem_ver',APP_VER);location.reload(true)}</script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -78,9 +78,11 @@ tr:hover{background:#f8fafc}
 .email-link{color:var(--purple);text-decoration:none;font-weight:500}
 .email-link:hover{text-decoration:underline}
 .paid-badge{cursor:pointer;font-size:1rem;user-select:none}
-.text-toggle{cursor:pointer;color:var(--text-sec);font-size:.78rem}
+.text-toggle{cursor:default;color:var(--text-sec);font-size:.78rem;position:relative}
 .text-toggle:hover{color:var(--text)}
-.apply-text{display:none;padding:6px 0;font-size:.78rem;color:var(--text-sec);line-height:1.4;max-width:300px;word-break:break-word}
+.text-toggle:hover .tooltip{display:block}
+.tooltip{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#1E293B;color:#fff;padding:8px 12px;border-radius:var(--radius);font-size:.75rem;line-height:1.5;max-width:300px;min-width:150px;word-break:break-word;white-space:normal;z-index:50;box-shadow:var(--shadow-md)}
+.tooltip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#1E293B}
 
 /* AI 공지문 영역 */
 .ai-zone{border:2px dashed var(--orange);border-radius:var(--radius-lg);padding:14px;margin:12px 0;background:#FFF7ED}
@@ -240,6 +242,7 @@ tr:hover{background:#f8fafc}
     </div>
     <div class="ai-actions">
       <button class="btn btn-primary" onclick="sendBulkEmail()" id="sendBtn">📧 선택된 참가자에게 메일 발송</button>
+      <button class="btn" style="background:var(--purple)" onclick="sendTestEmail()" id="testSendBtn">🧪 테스트 발송</button>
       <span id="selectedCount" style="font-size:.78rem;color:var(--text-sec)"></span>
     </div>
     <div class="progress-wrap" id="sendProgress">
@@ -300,11 +303,20 @@ var currentEventId = '';
 // ── 스토리지 키 ──
 var KEY_CLAUDE = 'oem_claude_key';
 var KEY_SCRIPT = 'oem_script_url';
+var KEY_EVENT = 'oem_selected_event';
+var KEY_ZOOM = 'oem_zoom_link';
 
 // ── 초기화 ──
 window.addEventListener('DOMContentLoaded', function() {
   updateApiStatus('claude');
   updateApiStatus('script');
+  // Zoom 링크 복원
+  var savedZoom = localStorage.getItem(KEY_ZOOM);
+  if (savedZoom) document.getElementById('zoomLink').value = savedZoom;
+  // Zoom 링크 변경 시 저장
+  document.getElementById('zoomLink').addEventListener('input', function() {
+    localStorage.setItem(KEY_ZOOM, this.value);
+  });
   loadEvents();
 });
 
@@ -398,7 +410,7 @@ async function loadEvents() {
 
 function renderEventSelect() {
   var sel = document.getElementById('eventSelect');
-  var prev = sel.value;
+  var prev = sel.value || localStorage.getItem(KEY_EVENT) || '';
   sel.innerHTML = '<option value="">-- 교육을 선택하세요 --</option>';
   events.forEach(function(ev) {
     var opt = document.createElement('option');
@@ -408,16 +420,23 @@ function renderEventSelect() {
     opt.textContent = ev['교육명'] + dateStr + countStr;
     sel.appendChild(opt);
   });
-  if (prev) sel.value = prev;
+  if (prev) {
+    sel.value = prev;
+    if (sel.value === prev) onEventChange();
+  }
 }
 
 window.onEventChange = function() {
   currentEventId = document.getElementById('eventSelect').value;
+  localStorage.setItem(KEY_EVENT, currentEventId);
   if (currentEventId) {
     loadParticipants(currentEventId);
-    // Zoom 링크 자동 채우기
-    var ev = events.find(function(e){ return String(e['교육ID']) === currentEventId; });
-    if (ev && ev['Zoom링크']) document.getElementById('zoomLink').value = ev['Zoom링크'];
+    // Zoom 링크: localStorage에 저장된 값 우선, 없으면 시트 값
+    var savedZoom = localStorage.getItem(KEY_ZOOM);
+    if (!savedZoom) {
+      var ev = events.find(function(e){ return String(e['교육ID']) === currentEventId; });
+      if (ev && ev['Zoom링크']) document.getElementById('zoomLink').value = ev['Zoom링크'];
+    }
   } else {
     participants = [];
     renderTable();
@@ -504,7 +523,7 @@ function renderTable() {
       '<td><a class="email-link" href="mailto:' + email + '" title="메일 보내기">' + email + '</a></td>' +
       '<td>' + esc(p['소속'] || '') + '</td>' +
       '<td><span class="paid-badge" onclick="togglePaid(' + i + ')" title="클릭하여 변경">' + (paid ? '✅' : '❌') + '</span></td>' +
-      '<td>' + (hasText ? '<span class="text-toggle" onclick="toggleText(this)">▶ 보기</span><div class="apply-text">' + text + '</div>' : '<span style="color:var(--text-light)">-</span>') + '</td>' +
+      '<td>' + (hasText ? '<span class="text-toggle">📝 보기<div class="tooltip">' + text + '</div></span>' : '<span style="color:var(--text-light)">-</span>') + '</td>' +
     '</tr>';
   }).join('');
 
@@ -562,14 +581,36 @@ window.togglePaid = async function(idx) {
   }
 };
 
-window.toggleText = function(el) {
-  var div = el.nextElementSibling;
-  if (div.style.display === 'block') {
-    div.style.display = 'none';
-    el.textContent = '▶ 보기';
-  } else {
-    div.style.display = 'block';
-    el.textContent = '▼ 접기';
+// ═══ 테스트 메일 발송 ═══
+
+window.sendTestEmail = async function() {
+  var subject = document.getElementById('emailSubject').value.trim();
+  var body = document.getElementById('aiResult').value.trim();
+  if (!subject) { toast('메일 제목을 입력하세요'); return; }
+  if (!body) { toast('공지문을 먼저 생성하세요'); return; }
+
+  var testAddr = 'jazzmania74@gmail.com';
+  if (!confirm('테스트 메일을 ' + testAddr + ' 으로 발송합니다.\n\n제목: ' + subject + '\n\n발송하시겠습니까?')) return;
+
+  var testBtn = document.getElementById('testSendBtn');
+  testBtn.disabled = true;
+  var htmlBody = body.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+
+  try {
+    var result = await callScript('sendBulkEmail', {
+      recipients: [testAddr],
+      subject: '[테스트] ' + subject,
+      htmlBody: htmlBody
+    });
+    if (result.success) {
+      toast('✅ 테스트 메일 발송 완료!');
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (e) {
+    toast('발송 오류: ' + e.message);
+  } finally {
+    testBtn.disabled = false;
   }
 };
 
