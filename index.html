@@ -863,6 +863,7 @@ window.generateAnnouncement = function() {
   lines.push('');
   lines.push('감사합니다.');
   lines.push('나눔경영컨설팅 김종혁 드림');
+  lines.push('010-2414-3329 / jazzmania74@gmail.com');
 
   resultEl.value = lines.join('\n');
   resultEl.classList.add('show');
@@ -870,7 +871,9 @@ window.generateAnnouncement = function() {
   // 메일 제목 자동 채우기
   var subjectEl = document.getElementById('emailSubject');
   if (!subjectEl.value) {
-    var dateStr = ev ? toKSTDate(ev['교육일자']).substring(5).replace('-', '월 ') + '일' : '';
+    var raw = ev ? toKSTDate(ev['교육일자']).substring(5) : '';
+    var parts = raw.split('-');
+    var dateStr = parts.length === 2 ? parseInt(parts[0]) + '월 ' + parseInt(parts[1]) + '일' : '';
     subjectEl.value = '[안내] ' + dateStr + ' ' + (ev ? ev['교육명'] : '공개교육') + ' / 김종혁 드림';
   }
 
