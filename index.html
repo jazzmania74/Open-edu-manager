@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>공개교육 참가자 관리기</title>
+<script>const APP_VER='20260311a';if(localStorage.getItem('oem_ver')!==APP_VER){localStorage.setItem('oem_ver',APP_VER);location.reload(true)}</script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --primary:#2563EB;--primary-light:#DBEAFE;--primary-dark:#1D4ED8;
+  --surface:#fff;--bg:#F5F5F5;--text:#1E293B;--text-sec:#64748B;--text-light:#94A3B8;
+  --border:#E2E8F0;--radius:8px;--radius-lg:12px;
+  --shadow:0 1px 3px rgba(0,0,0,.08);--shadow-md:0 4px 12px rgba(0,0,0,.1);
+  --orange:#F97316;--green:#16A34A;--red:#EF4444;--purple:#7C3AED;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans KR',-apple-system,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+.container{max-width:800px;margin:0 auto;padding:12px}
+
+/* 헤더 */
+.header{text-align:center;padding:16px 0 12px;border-bottom:2px solid var(--primary)}
+.header h1{font-size:1.3rem;font-weight:700;color:var(--primary)}
+.header p{font-size:.78rem;color:var(--text-sec);margin-top:2px}
+
+/* API 섹션 (collapsible) */
+.api-section{background:#e8f0fe;border-radius:var(--radius-lg);margin:12px 0 8px;padding:10px 14px;box-shadow:var(--shadow)}
+.api-toggle{cursor:pointer;font-size:.82rem;font-weight:bold;color:#1a73e8;user-select:none;display:flex;align-items:center;gap:6px}
+.api-toggle .arrow{transition:transform .2s;font-size:.7rem}
+.api-toggle.open .arrow{transform:rotate(90deg)}
+.api-body{display:none;margin-top:8px}
+.api-body.show{display:block}
+.api-input-area{display:flex;gap:6px;margin-top:4px}
+.api-input-area input{flex:1;padding:6px 10px;border:1px solid #c5cae9;border-radius:var(--radius);font-size:.82rem;font-family:monospace}
+.api-btn{padding:5px 12px;border:none;border-radius:var(--radius);color:#fff;font-size:.78rem;font-weight:600;cursor:pointer}
+.api-save-btn{background:#1a73e8}
+.api-save-btn:hover{background:#1557b0}
+.api-delete-btn{background:#d32f2f}
+.api-delete-btn:hover{background:#b71c1c}
+.api-status{font-size:.75rem;color:var(--green);margin-top:4px}
+
+/* 교육 선택 영역 */
+.event-bar{display:flex;gap:8px;align-items:center;margin:12px 0;flex-wrap:wrap}
+.event-bar select{flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:.88rem;font-family:inherit;background:var(--surface)}
+.btn{padding:7px 14px;border:none;border-radius:var(--radius);font-size:.82rem;font-weight:600;cursor:pointer;color:#fff;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.btn-primary{background:var(--primary)}
+.btn-primary:hover{background:var(--primary-dark)}
+.btn-green{background:var(--green)}
+.btn-green:hover{background:#15803d}
+.btn-orange{background:var(--orange)}
+.btn-orange:hover{background:#ea580c}
+.btn-red{background:var(--red)}
+.btn-red:hover{background:#dc2626}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* 통계 카드 */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.stat-card{background:var(--surface);border-radius:var(--radius);padding:10px 12px;text-align:center;box-shadow:var(--shadow)}
+.stat-card .num{font-size:1.4rem;font-weight:700}
+.stat-card .label{font-size:.72rem;color:var(--text-sec);margin-top:2px}
+.stat-total .num{color:var(--primary)}
+.stat-paid .num{color:var(--green)}
+.stat-unpaid .num{color:var(--red)}
+
+/* 참가자 테이블 */
+.table-wrap{overflow-x:auto;margin:10px 0;background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow)}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+thead{background:var(--primary);color:#fff}
+th{padding:8px 10px;text-align:left;font-weight:600;font-size:.78rem;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:hover{background:#f8fafc}
+.cb-col{width:36px;text-align:center}
+.cb-col input{width:16px;height:16px;cursor:pointer}
+.phone-link{color:var(--primary);cursor:pointer;text-decoration:none;font-weight:500}
+.phone-link:hover{text-decoration:underline}
+.email-link{color:var(--purple);text-decoration:none;font-weight:500}
+.email-link:hover{text-decoration:underline}
+.paid-badge{cursor:pointer;font-size:1rem;user-select:none}
+.text-toggle{cursor:pointer;color:var(--text-sec);font-size:.78rem}
+.text-toggle:hover{color:var(--text)}
+.apply-text{display:none;padding:6px 0;font-size:.78rem;color:var(--text-sec);line-height:1.4;max-width:300px;word-break:break-word}
+
+/* AI 공지문 영역 */
+.ai-zone{border:2px dashed var(--orange);border-radius:var(--radius-lg);padding:14px;margin:12px 0;background:#FFF7ED}
+.ai-zone h3{font-size:.9rem;color:var(--orange);margin-bottom:10px;font-weight:700}
+.ai-row{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+.ai-row label{font-size:.8rem;font-weight:600;white-space:nowrap;min-width:80px}
+.ai-row input,.ai-row textarea{flex:1;padding:7px 10px;border:1px solid #FDBA74;border-radius:var(--radius);font-size:.82rem;font-family:inherit;background:#fff}
+.ai-row textarea{min-height:40px;resize:vertical}
+.ai-result{width:100%;min-height:120px;max-height:300px;padding:10px;border:1px solid #FDBA74;border-radius:var(--radius);font-size:.82rem;font-family:inherit;resize:vertical;background:#fff;line-height:1.6;display:none}
+.ai-result.show{display:block}
+.ai-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
+
+/* 프로그레스 바 */
+.progress-wrap{display:none;margin-top:8px}
+.progress-wrap.active{display:block}
+.progress-bar{width:100%;height:20px;background:#f0f0f0;border-radius:10px;overflow:hidden}
+.progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--orange),#FBBF24);border-radius:10px;transition:width .3s}
+.progress-fill.done{background:linear-gradient(90deg,var(--green),#4ade80)}
+.progress-text{font-size:.72rem;color:var(--text-sec);margin-top:4px;text-align:center}
+
+/* 모달 */
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:100;justify-content:center;align-items:center}
+.modal-overlay.show{display:flex}
+.modal{background:var(--surface);border-radius:var(--radius-lg);padding:20px;width:90%;max-width:440px;box-shadow:var(--shadow-md)}
+.modal h3{font-size:1rem;margin-bottom:12px}
+.modal-row{margin-bottom:10px}
+.modal-row label{font-size:.8rem;font-weight:600;display:block;margin-bottom:4px}
+.modal-row input,.modal-row select{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:.82rem;font-family:inherit}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+
+/* 토스트 */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1E293B;color:#fff;padding:10px 20px;border-radius:var(--radius);font-size:.82rem;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+
+/* 반응형 */
+@media(max-width:600px){
+  .stats{grid-template-columns:repeat(3,1fr);gap:4px}
+  .stat-card{padding:8px 6px}
+  .event-bar{flex-direction:column}
+  .event-bar select{min-width:100%}
+  .ai-row{flex-direction:column}
+  .ai-row label{min-width:auto}
+  th,td{padding:5px 6px;font-size:.75rem}
+}
+
+/* 빈 상태 */
+.empty-state{text-align:center;padding:40px 20px;color:var(--text-sec)}
+.empty-state .icon{font-size:2.5rem;margin-bottom:8px}
+.empty-state p{font-size:.88rem}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- 헤더 -->
+  <div class="header">
+    <h1>📋 공개교육 참가자 관리기</h1>
+    <p>참가자 관리 · 입금확인 · AI 공지메일 발송</p>
+  </div>
+
+  <!-- Claude API 키 -->
+  <div class="api-section">
+    <div class="api-toggle" onclick="toggleApi('claude')">
+      🔑 Claude API <span class="arrow" id="claudeArrow">▶</span> <span id="claudeStatus"></span>
+    </div>
+    <div class="api-body" id="claudeBody">
+      <div class="api-input-area">
+        <input type="password" id="claudeKey" placeholder="sk-ant-..." onkeydown="if(event.key==='Enter'){saveApi('claude');document.getElementById('scriptUrl').focus()}">
+        <button class="api-btn api-save-btn" onclick="saveApi('claude')">저장</button>
+        <button class="api-btn api-delete-btn" onclick="deleteApi('claude')">삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Apps Script URL -->
+  <div class="api-section">
+    <div class="api-toggle" onclick="toggleApi('script')">
+      🔗 Apps Script URL <span class="arrow" id="scriptArrow">▶</span> <span id="scriptStatus"></span>
+    </div>
+    <div class="api-body" id="scriptBody">
+      <div class="api-input-area">
+        <input type="text" id="scriptUrl" placeholder="https://script.google.com/macros/s/.../exec" onkeydown="if(event.key==='Enter')saveApi('script')">
+        <button class="api-btn api-save-btn" onclick="saveApi('script')">저장</button>
+        <button class="api-btn api-delete-btn" onclick="deleteApi('script')">삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 교육 선택 -->
+  <div class="event-bar">
+    <select id="eventSelect" onchange="onEventChange()">
+      <option value="">-- 교육을 선택하세요 --</option>
+    </select>
+    <button class="btn btn-green" onclick="showAddEventModal()">+ 새 교육</button>
+    <button class="btn btn-primary" onclick="syncParticipants()" id="syncBtn">🔄 동기화</button>
+  </div>
+
+  <!-- 동기화 프로그레스 -->
+  <div class="progress-wrap" id="syncProgress">
+    <div class="progress-bar"><div class="progress-fill" id="syncFill"></div></div>
+    <div class="progress-text" id="syncText">동기화 준비 중...</div>
+  </div>
+
+  <!-- 통계 -->
+  <div class="stats">
+    <div class="stat-card stat-total"><div class="num" id="statTotal">0</div><div class="label">전체 참가자</div></div>
+    <div class="stat-card stat-paid"><div class="num" id="statPaid">0</div><div class="label">입금 완료</div></div>
+    <div class="stat-card stat-unpaid"><div class="num" id="statUnpaid">0</div><div class="label">미입금</div></div>
+  </div>
+
+  <!-- 참가자 테이블 -->
+  <div class="table-wrap">
+    <table id="partTable">
+      <thead>
+        <tr>
+          <th class="cb-col"><input type="checkbox" id="checkAll" onchange="toggleCheckAll(this)"></th>
+          <th>이름</th>
+          <th>전화번호</th>
+          <th>이메일</th>
+          <th>소속</th>
+          <th>입금</th>
+          <th>신청글</th>
+        </tr>
+      </thead>
+      <tbody id="partBody"></tbody>
+    </table>
+    <div class="empty-state" id="emptyState">
+      <div class="icon">📋</div>
+      <p>교육을 선택하면 참가자 목록이 표시됩니다</p>
+    </div>
+  </div>
+
+  <!-- AI 공지문 영역 -->
+  <div class="ai-zone">
+    <h3>🤖 AI 공지문 생성</h3>
+    <div class="ai-row">
+      <label>Zoom 링크</label>
+      <input type="text" id="zoomLink" placeholder="https://zoom.us/j/...">
+    </div>
+    <div class="ai-row">
+      <label>추가 안내</label>
+      <textarea id="extraInfo" placeholder="추가 전달사항 (선택)"></textarea>
+    </div>
+    <button class="btn btn-orange" onclick="generateAnnouncement()" id="genBtn">🤖 공지문 생성</button>
+    <div class="progress-wrap" id="aiProgress">
+      <div class="progress-bar"><div class="progress-fill" id="aiFill"></div></div>
+      <div class="progress-text" id="aiText">AI가 공지문을 작성하고 있습니다...</div>
+    </div>
+    <textarea class="ai-result" id="aiResult" placeholder="생성된 공지문이 여기에 표시됩니다..."></textarea>
+
+    <div class="ai-actions">
+      <div class="ai-row" style="margin:0;flex:1">
+        <label style="min-width:60px">메일 제목</label>
+        <input type="text" id="emailSubject" placeholder="메일 제목을 입력하세요">
+      </div>
+    </div>
+    <div class="ai-actions">
+      <button class="btn btn-primary" onclick="sendBulkEmail()" id="sendBtn">📧 선택된 참가자에게 메일 발송</button>
+      <span id="selectedCount" style="font-size:.78rem;color:var(--text-sec)"></span>
+    </div>
+    <div class="progress-wrap" id="sendProgress">
+      <div class="progress-bar"><div class="progress-fill" id="sendFill"></div></div>
+      <div class="progress-text" id="sendText">메일 발송 중...</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 새 교육 등록 모달 -->
+<div class="modal-overlay" id="addEventModal">
+  <div class="modal">
+    <h3>📝 새 교육 등록</h3>
+    <div class="modal-row">
+      <label>교육ID (예: 260314)</label>
+      <input type="text" id="newEventId" placeholder="YYMMDD">
+    </div>
+    <div class="modal-row">
+      <label>교육명</label>
+      <input type="text" id="newEventName" placeholder="기업강사 AI교육">
+    </div>
+    <div class="modal-row">
+      <label>교육일자</label>
+      <input type="date" id="newEventDate">
+    </div>
+    <div class="modal-row">
+      <label>Google Form ID</label>
+      <input type="text" id="newFormId" placeholder="Form ID (gform 파일에서 확인)">
+    </div>
+    <div class="modal-row">
+      <label>상태</label>
+      <select id="newEventStatus">
+        <option value="모집중">모집중</option>
+        <option value="진행중">진행중</option>
+        <option value="완료">완료</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="addEvent()">등록</button>
+      <button class="btn" style="background:var(--text-sec)" onclick="closeModal()">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 토스트 -->
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+'use strict';
+
+// ── 상태 ──
+var participants = [];
+var events = [];
+var currentEventId = '';
+
+// ── 스토리지 키 ──
+var KEY_CLAUDE = 'oem_claude_key';
+var KEY_SCRIPT = 'oem_script_url';
+
+// ── 초기화 ──
+window.addEventListener('DOMContentLoaded', function() {
+  updateApiStatus('claude');
+  updateApiStatus('script');
+  loadEvents();
+});
+
+// ═══ API 키 관리 ═══
+
+window.toggleApi = function(type) {
+  var body = document.getElementById(type === 'claude' ? 'claudeBody' : 'scriptBody');
+  var arrow = document.getElementById(type === 'claude' ? 'claudeArrow' : 'scriptArrow');
+  var toggle = arrow.parentElement;
+  body.classList.toggle('show');
+  toggle.classList.toggle('open');
+};
+
+window.saveApi = function(type) {
+  var key = type === 'claude' ? KEY_CLAUDE : KEY_SCRIPT;
+  var input = document.getElementById(type === 'claude' ? 'claudeKey' : 'scriptUrl');
+  var val = input.value.trim();
+  if (!val) { toast('값을 입력하세요'); return; }
+  localStorage.setItem(key, val);
+  input.value = '';
+  updateApiStatus(type);
+  toast((type === 'claude' ? 'Claude API 키' : 'Apps Script URL') + ' 저장됨');
+  // 연결 후 이벤트 로드
+  if (type === 'script') loadEvents();
+};
+
+window.deleteApi = function(type) {
+  var key = type === 'claude' ? KEY_CLAUDE : KEY_SCRIPT;
+  localStorage.removeItem(key);
+  updateApiStatus(type);
+  toast((type === 'claude' ? 'Claude API 키' : 'Apps Script URL') + ' 삭제됨');
+};
+
+function updateApiStatus(type) {
+  var key = type === 'claude' ? KEY_CLAUDE : KEY_SCRIPT;
+  var statusEl = document.getElementById(type === 'claude' ? 'claudeStatus' : 'scriptStatus');
+  var val = localStorage.getItem(key);
+  statusEl.textContent = val ? '✅ 저장됨' : '❌ 미설정';
+  statusEl.style.color = val ? 'var(--green)' : 'var(--red)';
+}
+
+function getScriptUrl() { return localStorage.getItem(KEY_SCRIPT) || ''; }
+function getClaudeKey() { return localStorage.getItem(KEY_CLAUDE) || ''; }
+
+// ═══ API 호출 헬퍼 ═══
+
+async function callScript(action, data) {
+  var url = getScriptUrl();
+  if (!url) throw new Error('Apps Script URL을 먼저 설정하세요.');
+
+  if (!action || action === 'getEvents') {
+    var res = await fetch(url + '?action=getEvents');
+    return await res.json();
+  }
+
+  var res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(Object.assign({ action: action }, data || {}))
+  });
+  return await res.json();
+}
+
+// ═══ 교육 목록 ═══
+
+async function loadEvents() {
+  if (!getScriptUrl()) return;
+  try {
+    var result = await callScript('getEvents');
+    if (result.success) {
+      events = result.data || [];
+      renderEventSelect();
+    }
+  } catch (e) {
+    console.error('loadEvents:', e);
+  }
+}
+
+function renderEventSelect() {
+  var sel = document.getElementById('eventSelect');
+  sel.innerHTML = '<option value="">-- 교육을 선택하세요 --</option>';
+  events.forEach(function(ev) {
+    var opt = document.createElement('option');
+    opt.value = ev['교육ID'];
+    var dateStr = ev['교육일자'] ? (' (' + String(ev['교육일자']).substring(0,10) + ')') : '';
+    opt.textContent = ev['교육명'] + dateStr;
+    sel.appendChild(opt);
+  });
+}
+
+window.onEventChange = function() {
+  currentEventId = document.getElementById('eventSelect').value;
+  if (currentEventId) {
+    loadParticipants(currentEventId);
+    // Zoom 링크 자동 채우기
+    var ev = events.find(function(e){ return String(e['교육ID']) === currentEventId; });
+    if (ev && ev['Zoom링크']) document.getElementById('zoomLink').value = ev['Zoom링크'];
+  } else {
+    participants = [];
+    renderTable();
+  }
+};
+
+// ═══ 새 교육 등록 ═══
+
+window.showAddEventModal = function() {
+  document.getElementById('addEventModal').classList.add('show');
+};
+
+window.closeModal = function() {
+  document.getElementById('addEventModal').classList.remove('show');
+};
+
+window.addEvent = async function() {
+  var data = {
+    '교육ID': document.getElementById('newEventId').value.trim(),
+    '교육명': document.getElementById('newEventName').value.trim(),
+    '교육일자': document.getElementById('newEventDate').value,
+    'FormID': document.getElementById('newFormId').value.trim(),
+    '상태': document.getElementById('newEventStatus').value
+  };
+  if (!data['교육ID'] || !data['교육명']) { toast('교육ID와 교육명을 입력하세요'); return; }
+
+  try {
+    var result = await callScript('addEvent', { data: data });
+    if (result.success) {
+      toast('교육이 등록되었습니다');
+      closeModal();
+      await loadEvents();
+      document.getElementById('eventSelect').value = data['교육ID'];
+      onEventChange();
+    } else {
+      toast('오류: ' + result.error);
+    }
+  } catch (e) {
+    toast('오류: ' + e.message);
+  }
+};
+
+// ═══ 참가자 로드 ═══
+
+async function loadParticipants(eventId) {
+  try {
+    var result = await callScript('getParticipants', { eventId: eventId });
+    if (result.success) {
+      participants = result.data || [];
+      renderTable();
+    } else {
+      toast('오류: ' + result.error);
+    }
+  } catch (e) {
+    toast('오류: ' + e.message);
+  }
+}
+
+// ═══ 테이블 렌더링 ═══
+
+function renderTable() {
+  var tbody = document.getElementById('partBody');
+  var empty = document.getElementById('emptyState');
+
+  if (!participants.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    updateStats();
+    return;
+  }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = participants.map(function(p, i) {
+    var phone = esc(p['전화번호'] || '');
+    var email = esc(p['이메일'] || '');
+    var paid = p['입금여부'] === 'Y';
+    var text = esc(p['신청글'] || '');
+    var hasText = !!p['신청글'];
+
+    return '<tr>' +
+      '<td class="cb-col"><input type="checkbox" class="part-cb" data-idx="' + i + '" onchange="updateSelectedCount()"></td>' +
+      '<td><strong>' + esc(p['이름'] || '') + '</strong></td>' +
+      '<td><a class="phone-link" href="javascript:void(0)" onclick="copyPhone(\'' + phone + '\')" title="클릭: 복사 + 메시지">' + phone + '</a></td>' +
+      '<td><a class="email-link" href="mailto:' + email + '" title="메일 보내기">' + email + '</a></td>' +
+      '<td>' + esc(p['소속'] || '') + '</td>' +
+      '<td><span class="paid-badge" onclick="togglePaid(' + i + ')" title="클릭하여 변경">' + (paid ? '✅' : '❌') + '</span></td>' +
+      '<td>' + (hasText ? '<span class="text-toggle" onclick="toggleText(this)">▶ 보기</span><div class="apply-text">' + text + '</div>' : '<span style="color:var(--text-light)">-</span>') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  updateStats();
+  updateSelectedCount();
+}
+
+function updateStats() {
+  var total = participants.length;
+  var paid = participants.filter(function(p){ return p['입금여부'] === 'Y'; }).length;
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statPaid').textContent = paid;
+  document.getElementById('statUnpaid').textContent = total - paid;
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ═══ 인터랙션 ═══
+
+window.copyPhone = function(phone) {
+  navigator.clipboard.writeText(phone).then(function() {
+    toast('📞 ' + phone + ' 복사됨');
+  });
+  // SMS 링크 열기 (모바일: sms:, 데스크톱: messages.google.com)
+  var cleaned = phone.replace(/[^0-9+]/g, '');
+  if (/Mobi|Android/i.test(navigator.userAgent)) {
+    window.open('sms:' + cleaned, '_blank');
+  } else {
+    window.open('https://messages.google.com/web/conversations/new', '_blank');
+  }
+};
+
+window.togglePaid = async function(idx) {
+  var p = participants[idx];
+  var newPaid = p['입금여부'] !== 'Y';
+  var today = new Date().toISOString().substring(0,10);
+
+  try {
+    var result = await callScript('updatePayment', {
+      eventId: currentEventId,
+      email: p['이메일'],
+      paid: newPaid,
+      paidDate: newPaid ? today : ''
+    });
+    if (result.success) {
+      p['입금여부'] = newPaid ? 'Y' : '';
+      p['입금일'] = newPaid ? today : '';
+      renderTable();
+      toast(p['이름'] + ' 입금상태: ' + (newPaid ? '✅ 완료' : '❌ 미입금'));
+    } else {
+      toast('오류: ' + result.error);
+    }
+  } catch (e) {
+    toast('오류: ' + e.message);
+  }
+};
+
+window.toggleText = function(el) {
+  var div = el.nextElementSibling;
+  if (div.style.display === 'block') {
+    div.style.display = 'none';
+    el.textContent = '▶ 보기';
+  } else {
+    div.style.display = 'block';
+    el.textContent = '▼ 접기';
+  }
+};
+
+window.toggleCheckAll = function(el) {
+  var cbs = document.querySelectorAll('.part-cb');
+  cbs.forEach(function(cb){ cb.checked = el.checked; });
+  updateSelectedCount();
+};
+
+window.updateSelectedCount = function() {
+  var checked = document.querySelectorAll('.part-cb:checked').length;
+  document.getElementById('selectedCount').textContent = checked > 0 ? '(' + checked + '명 선택됨)' : '';
+};
+
+// ═══ 동기화 ═══
+
+window.syncParticipants = async function() {
+  if (!currentEventId) { toast('교육을 먼저 선택하세요'); return; }
+
+  var syncBtn = document.getElementById('syncBtn');
+  var progress = document.getElementById('syncProgress');
+  var fill = document.getElementById('syncFill');
+  var text = document.getElementById('syncText');
+
+  syncBtn.style.display = 'none';
+  progress.classList.add('active');
+  fill.style.width = '0%';
+  fill.className = 'progress-fill';
+
+  // 자연 증가 애니메이션
+  var pct = 0;
+  var interval = setInterval(function() {
+    pct += Math.random() * 8;
+    if (pct > 88) pct = 88;
+    fill.style.width = pct + '%';
+    text.textContent = 'Form 응답 동기화 중... ' + Math.round(pct) + '%';
+  }, 300);
+
+  try {
+    var result = await callScript('syncParticipants', { eventId: currentEventId });
+    clearInterval(interval);
+
+    if (result.success) {
+      fill.style.width = '100%';
+      fill.classList.add('done');
+      text.textContent = '✅ 동기화 완료! ' + result.added + '명 추가 (전체 ' + result.total + '명)';
+      await loadParticipants(currentEventId);
+      setTimeout(function() {
+        progress.classList.remove('active');
+        syncBtn.style.display = '';
+      }, 2000);
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (e) {
+    clearInterval(interval);
+    progress.classList.remove('active');
+    syncBtn.style.display = '';
+    toast('동기화 오류: ' + e.message);
+  }
+};
+
+// ═══ AI 공지문 생성 ═══
+
+window.generateAnnouncement = async function() {
+  var apiKey = getClaudeKey();
+  if (!apiKey) { toast('Claude API 키를 먼저 설정하세요'); return; }
+  if (!currentEventId) { toast('교육을 먼저 선택하세요'); return; }
+
+  var ev = events.find(function(e){ return String(e['교육ID']) === currentEventId; });
+  var zoomLink = document.getElementById('zoomLink').value.trim();
+  var extraInfo = document.getElementById('extraInfo').value.trim();
+
+  var genBtn = document.getElementById('genBtn');
+  var progress = document.getElementById('aiProgress');
+  var fill = document.getElementById('aiFill');
+  var aiText = document.getElementById('aiText');
+  var resultEl = document.getElementById('aiResult');
+
+  genBtn.disabled = true;
+  progress.classList.add('active');
+  fill.style.width = '0%';
+  fill.className = 'progress-fill';
+
+  var pct = 0;
+  var interval = setInterval(function() {
+    pct += Math.random() * 6;
+    if (pct > 85) pct = 85;
+    fill.style.width = pct + '%';
+    aiText.textContent = 'AI가 공지문을 작성하고 있습니다... ' + Math.round(pct) + '%';
+  }, 400);
+
+  var systemPrompt = '당신은 한국어 비즈니스 이메일 작성 전문가입니다. 공개교육 참가자에게 보내는 공지 메일 본문을 작성해주세요. HTML 태그 없이 순수 텍스트로 작성하세요. 인사말로 시작하고, 교육 안내, Zoom 접속 정보, 추가 안내사항을 포함하세요. 마지막에 감사 인사로 마무리하세요.';
+
+  var userPrompt = '아래 교육 정보로 참가자 공지 메일을 작성해주세요.\n\n';
+  userPrompt += '교육명: ' + (ev ? ev['교육명'] : '') + '\n';
+  userPrompt += '교육일자: ' + (ev ? String(ev['교육일자']).substring(0,10) : '') + '\n';
+  if (zoomLink) userPrompt += 'Zoom 링크: ' + zoomLink + '\n';
+  if (extraInfo) userPrompt += '추가 안내사항: ' + extraInfo + '\n';
+
+  try {
+    var response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 2048,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }]
+      })
+    });
+
+    clearInterval(interval);
+
+    if (!response.ok) {
+      var errData = await response.json().catch(function(){ return {}; });
+      if (response.status === 401) throw new Error('API 키가 유효하지 않습니다.');
+      if (response.status === 429) throw new Error('API 요청 한도 초과. 잠시 후 다시 시도하세요.');
+      throw new Error((errData.error && errData.error.message) || ('API 오류 (' + response.status + ')'));
+    }
+
+    var data = await response.json();
+    var text = data.content[0].text;
+
+    fill.style.width = '100%';
+    fill.classList.add('done');
+    aiText.textContent = '✅ 공지문 생성 완료!';
+
+    resultEl.value = text;
+    resultEl.classList.add('show');
+
+    // 메일 제목 자동 채우기
+    var subjectEl = document.getElementById('emailSubject');
+    if (!subjectEl.value) {
+      subjectEl.value = '[안내] ' + (ev ? ev['교육명'] : '공개교육') + ' 참가 안내';
+    }
+
+    setTimeout(function() {
+      progress.classList.remove('active');
+    }, 1500);
+
+  } catch (e) {
+    clearInterval(interval);
+    progress.classList.remove('active');
+    toast('AI 오류: ' + e.message);
+  } finally {
+    genBtn.disabled = false;
+  }
+};
+
+// ═══ 메일 발송 ═══
+
+window.sendBulkEmail = async function() {
+  var checkedBoxes = document.querySelectorAll('.part-cb:checked');
+  if (!checkedBoxes.length) { toast('메일을 받을 참가자를 선택하세요'); return; }
+
+  var subject = document.getElementById('emailSubject').value.trim();
+  var body = document.getElementById('aiResult').value.trim();
+  if (!subject) { toast('메일 제목을 입력하세요'); return; }
+  if (!body) { toast('공지문을 먼저 생성하세요'); return; }
+
+  var recipients = [];
+  checkedBoxes.forEach(function(cb) {
+    var idx = Number(cb.dataset.idx);
+    if (participants[idx] && participants[idx]['이메일']) {
+      recipients.push(participants[idx]['이메일']);
+    }
+  });
+
+  if (!recipients.length) { toast('유효한 이메일이 없습니다'); return; }
+
+  // 확인
+  if (!confirm(recipients.length + '명에게 메일을 발송합니다.\n\n제목: ' + subject + '\n\n발송하시겠습니까?')) return;
+
+  var sendBtn = document.getElementById('sendBtn');
+  var progress = document.getElementById('sendProgress');
+  var fill = document.getElementById('sendFill');
+  var sendText = document.getElementById('sendText');
+
+  sendBtn.disabled = true;
+  progress.classList.add('active');
+  fill.style.width = '0%';
+  fill.className = 'progress-fill';
+
+  var pct = 0;
+  var interval = setInterval(function() {
+    pct += Math.random() * 10;
+    if (pct > 88) pct = 88;
+    fill.style.width = pct + '%';
+    sendText.textContent = '메일 발송 중... ' + Math.round(pct) + '%';
+  }, 300);
+
+  // 텍스트를 HTML로 변환 (줄바꿈 → <br>)
+  var htmlBody = body.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+
+  try {
+    var result = await callScript('sendBulkEmail', {
+      recipients: recipients,
+      subject: subject,
+      htmlBody: htmlBody
+    });
+
+    clearInterval(interval);
+
+    if (result.success) {
+      fill.style.width = '100%';
+      fill.classList.add('done');
+      sendText.textContent = '✅ ' + result.sent + '/' + result.total + '명 발송 완료!';
+      if (result.failed && result.failed.length) {
+        sendText.textContent += ' (실패: ' + result.failed.length + '명)';
+      }
+      setTimeout(function() {
+        progress.classList.remove('active');
+        sendBtn.disabled = false;
+      }, 3000);
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (e) {
+    clearInterval(interval);
+    progress.classList.remove('active');
+    sendBtn.disabled = false;
+    toast('발송 오류: ' + e.message);
+  }
+};
+
+// ═══ 유틸리티 ═══
+
+function toast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(function(){ el.classList.remove('show'); }, 2500);
+}
+
+})();
+</script>
+</body>
+</html>
