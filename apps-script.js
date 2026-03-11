@@ -45,7 +45,7 @@ function sheetToObjects(sheet) {
     for (var j = 0; j < headers.length; j++) {
       var val = data[i][j];
       if (val instanceof Date) {
-        val = Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss");
+        val = Utilities.formatDate(val, 'Asia/Seoul', "yyyy-MM-dd'T'HH:mm:ss");
       }
       obj[headers[j]] = val;
     }
@@ -266,7 +266,7 @@ function syncParticipants(eventId) {
 
     var timestamp = row[0];
     if (timestamp instanceof Date) {
-      timestamp = Utilities.formatDate(timestamp, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
+      timestamp = Utilities.formatDate(timestamp, 'Asia/Seoul', "yyyy-MM-dd HH:mm");
     }
 
     var newData = {
@@ -430,7 +430,7 @@ function syncAllParticipants() {
 
       var timestamp = row[0];
       if (timestamp instanceof Date) {
-        timestamp = Utilities.formatDate(timestamp, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
+        timestamp = Utilities.formatDate(timestamp, 'Asia/Seoul', "yyyy-MM-dd HH:mm");
       }
 
       var newRow = partHeaders.map(function(h) {
