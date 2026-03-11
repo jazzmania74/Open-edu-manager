@@ -221,22 +221,26 @@ tr:hover{background:#f8fafc}
     </div>
   </div>
 
-  <!-- AI 공지문 영역 -->
+  <!-- 공지문 생성 영역 -->
   <div class="ai-zone">
-    <h3>🤖 AI 공지문 생성</h3>
+    <h3>📋 공지문 생성</h3>
+    <div class="ai-row">
+      <label>교육시간</label>
+      <input type="text" id="eduTime" placeholder="예: 10:00~12:00">
+    </div>
     <div class="ai-row">
       <label>Zoom 링크</label>
       <input type="text" id="zoomLink" placeholder="https://zoom.us/j/...">
     </div>
     <div class="ai-row">
+      <label>Zoom 암호</label>
+      <input type="text" id="zoomPasscode" placeholder="숫자 암호 (예: 525855)">
+    </div>
+    <div class="ai-row">
       <label>추가 안내</label>
       <textarea id="extraInfo" placeholder="추가 전달사항 (선택)"></textarea>
     </div>
-    <button class="btn btn-orange" onclick="generateAnnouncement()" id="genBtn">🤖 공지문 생성</button>
-    <div class="progress-wrap" id="aiProgress">
-      <div class="progress-bar"><div class="progress-fill" id="aiFill"></div></div>
-      <div class="progress-text" id="aiText">AI가 공지문을 작성하고 있습니다...</div>
-    </div>
+    <button class="btn btn-orange" onclick="generateAnnouncement()" id="genBtn">📋 공지문 생성</button>
     <textarea class="ai-result" id="aiResult" placeholder="생성된 공지문이 여기에 표시됩니다..."></textarea>
 
     <div class="ai-actions">
@@ -310,6 +314,8 @@ var KEY_CLAUDE = 'oem_claude_key';
 var KEY_SCRIPT = 'oem_script_url';
 var KEY_EVENT = 'oem_selected_event';
 var KEY_ZOOM = 'oem_zoom_link';
+var KEY_ZOOM_PW = 'oem_zoom_passcode';
+var KEY_EDU_TIME = 'oem_edu_time';
 var KEY_TUITION = 'oem_tuition_fee';
 
 // ── 초기화 ──
@@ -325,6 +331,18 @@ window.addEventListener('DOMContentLoaded', function() {
   // Zoom 링크 변경 시 저장
   document.getElementById('zoomLink').addEventListener('input', function() {
     localStorage.setItem(KEY_ZOOM, this.value);
+  });
+  // Zoom 암호 복원 & 저장
+  var savedPw = localStorage.getItem(KEY_ZOOM_PW);
+  if (savedPw) document.getElementById('zoomPasscode').value = savedPw;
+  document.getElementById('zoomPasscode').addEventListener('input', function() {
+    localStorage.setItem(KEY_ZOOM_PW, this.value);
+  });
+  // 교육시간 복원 & 저장
+  var savedTime = localStorage.getItem(KEY_EDU_TIME);
+  if (savedTime) document.getElementById('eduTime').value = savedTime;
+  document.getElementById('eduTime').addEventListener('input', function() {
+    localStorage.setItem(KEY_EDU_TIME, this.value);
   });
   loadEvents();
 });
@@ -772,98 +790,91 @@ window.syncAllParticipants = async function() {
   }
 };
 
-// ═══ AI 공지문 생성 ═══
+// ═══ 공지문 생성 (템플릿 기반) ═══
 
-window.generateAnnouncement = async function() {
-  var apiKey = getClaudeKey();
-  if (!apiKey) { toast('Claude API 키를 먼저 설정하세요'); return; }
+function formatMeetingId(url) {
+  var m = url.match(/\/j\/(\d+)/);
+  if (!m) return '';
+  var digits = m[1];
+  if (digits.length === 11) return digits.substring(0,3) + ' ' + digits.substring(3,7) + ' ' + digits.substring(7);
+  if (digits.length === 10) return digits.substring(0,3) + ' ' + digits.substring(3,6) + ' ' + digits.substring(6);
+  return digits;
+}
+
+function formatDateWithDay(dateStr) {
+  if (!dateStr) return '';
+  var d = new Date(dateStr + 'T00:00:00+09:00');
+  var days = ['일','월','화','수','목','금','토'];
+  var y = d.getFullYear();
+  var m = d.getMonth() + 1;
+  var day = d.getDate();
+  var dow = days[d.getDay()];
+  return y + '년 ' + m + '월 ' + day + '일(' + dow + ')';
+}
+
+window.generateAnnouncement = function() {
   if (!currentEventId) { toast('교육을 먼저 선택하세요'); return; }
 
   var ev = events.find(function(e){ return String(e['교육ID']) === currentEventId; });
   var zoomLink = document.getElementById('zoomLink').value.trim();
+  var zoomPasscode = document.getElementById('zoomPasscode').value.trim();
+  var eduTime = document.getElementById('eduTime').value.trim();
   var extraInfo = document.getElementById('extraInfo').value.trim();
-
-  var genBtn = document.getElementById('genBtn');
-  var progress = document.getElementById('aiProgress');
-  var fill = document.getElementById('aiFill');
-  var aiText = document.getElementById('aiText');
   var resultEl = document.getElementById('aiResult');
 
-  genBtn.disabled = true;
-  progress.classList.add('active');
-  fill.style.width = '0%';
-  fill.className = 'progress-fill';
+  if (!zoomLink) { toast('Zoom 링크를 입력하세요'); return; }
+  if (!eduTime) { toast('교육시간을 입력하세요'); return; }
 
-  var pct = 0;
-  var interval = setInterval(function() {
-    pct += Math.random() * 6;
-    if (pct > 85) pct = 85;
-    fill.style.width = pct + '%';
-    aiText.textContent = 'AI가 공지문을 작성하고 있습니다... ' + Math.round(pct) + '%';
-  }, 400);
+  var eduName = ev ? ev['교육명'] : '';
+  var eduDate = ev ? formatDateWithDay(toKSTDate(ev['교육일자'])) : '';
+  var meetingId = formatMeetingId(zoomLink);
+  var passcode = zoomPasscode || '';
 
-  var systemPrompt = '당신은 한국어 비즈니스 이메일 작성 전문가입니다. 공개교육 참가자에게 보내는 공지 메일 본문만 작성하세요. 제목줄(제목: ...)은 절대 포함하지 마세요. HTML 태그 없이 순수 텍스트로 작성하세요. 반드시 "안녕하세요?"로 시작하세요. 아래 형식을 정확히 따르세요. 줄바꿈도 형식 그대로 유지하세요.\n\n[형식 - 이 형식을 정확히 따르세요]\n안녕하세요?\n\n귀중한 시간을 내어 공개교육에 참가해주시기로 결정해주신 점 진심으로 감사드립니다.\n교육 일정 및 접속 정보를 안내해드리오니 참고하여 주시기 바랍니다.\n\n■ 교육 정보\n- 교육명: {교육명}\n- 교육일자: {교육일자(요일)}\n- 교육시간: {시간}\n\n■ Zoom 접속 정보\n아래의 Zoom 링크를 통해 접속하실 수 있습니다.\n{줌링크 전체 URL}\n수동으로 접속하시는 경우 다음 정보를 입력해주세요.\n- 회의 ID: {줌링크 URL에서 /j/ 뒤의 숫자를 3-4-4 형식으로}\n- 암호: {줌링크 URL의 pwd= 파라미터 값 또는 별도 제공된 암호}\n\n■ 추가 안내사항\n- 교육 시작 최소 15분 전 입장하시기를 권장합니다.\n- 마이크와 카메라 점검을 미리 진행해주시기 바랍니다.\n- 기술적인 문제가 발생하시면 교육 시작 전 충분한 시간을 두고 접속을 시도해주세요.\n- 교육 중에는 주의 깊게 참여해주시고, 궁금한 사항은 실시간으로 질문해주시기 바랍니다.\n{추가안내사항이 있으면 여기에 추가}\n\n온라인 교육은 https://www.nanumcampus.com/main/index.jsp 에 공유되니 참조하세요.\n\n이번 교육이 여러분에게 의미 있는 학습 기회가 되기를 바랍니다. 교육에 대한 추가 문의사항이 있으시면 언제든지 연락주시기 바랍니다.\n\n감사합니다.\n나눔경영컨설팅 김종혁 드림';
-
-  var userPrompt = '아래 정보로 공지 메일을 위 형식 그대로 작성해주세요. Zoom 링크의 URL에서 /j/ 뒤 숫자를 회의 ID(3자리 4자리 4자리 형식)로, pwd= 값을 암호로 추출하세요. 추가 안내사항이 없으면 기본 4개 항목만 유지하세요.\n\n';
-  userPrompt += '교육명: ' + (ev ? ev['교육명'] : '') + '\n';
-  userPrompt += '교육일자: ' + (ev ? toKSTDate(ev['교육일자']) : '') + '\n';
-  if (zoomLink) userPrompt += 'Zoom 링크: ' + zoomLink + '\n';
-  if (extraInfo) userPrompt += '추가 안내사항: ' + extraInfo + '\n';
-
-  try {
-    var response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 2048,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userPrompt }]
-      })
-    });
-
-    clearInterval(interval);
-
-    if (!response.ok) {
-      var errData = await response.json().catch(function(){ return {}; });
-      if (response.status === 401) throw new Error('API 키가 유효하지 않습니다.');
-      if (response.status === 429) throw new Error('API 요청 한도 초과. 잠시 후 다시 시도하세요.');
-      throw new Error((errData.error && errData.error.message) || ('API 오류 (' + response.status + ')'));
-    }
-
-    var data = await response.json();
-    var text = data.content[0].text;
-
-    fill.style.width = '100%';
-    fill.classList.add('done');
-    aiText.textContent = '✅ 공지문 생성 완료!';
-
-    resultEl.value = text;
-    resultEl.classList.add('show');
-
-    // 메일 제목 자동 채우기
-    var subjectEl = document.getElementById('emailSubject');
-    if (!subjectEl.value) {
-      var dateStr = ev ? toKSTDate(ev['교육일자']).substring(5).replace('-', '월 ') + '일' : '';
-      subjectEl.value = '[안내] ' + dateStr + ' ' + (ev ? ev['교육명'] : '공개교육') + ' / 김종혁 드림';
-    }
-
-    setTimeout(function() {
-      progress.classList.remove('active');
-    }, 1500);
-
-  } catch (e) {
-    clearInterval(interval);
-    progress.classList.remove('active');
-    toast('AI 오류: ' + e.message);
-  } finally {
-    genBtn.disabled = false;
+  var lines = [];
+  lines.push('안녕하세요?');
+  lines.push('');
+  lines.push('귀중한 시간을 내어 공개교육에 참가해주시기로 결정해주신 점 진심으로 감사드립니다.');
+  lines.push('교육 일정 및 접속 정보를 안내해드리오니 참고하여 주시기 바랍니다.');
+  lines.push('');
+  lines.push('■ 교육 정보');
+  lines.push('- 교육명: ' + eduName);
+  lines.push('- 교육일자: ' + eduDate);
+  lines.push('- 교육시간: ' + eduTime);
+  lines.push('');
+  lines.push('■ Zoom 접속 정보');
+  lines.push('아래의 Zoom 링크를 통해 접속하실 수 있습니다.');
+  lines.push(zoomLink);
+  if (meetingId || passcode) {
+    lines.push('수동으로 접속하시는 경우 다음 정보를 입력해주세요.');
+    if (meetingId) lines.push('- 회의 ID: ' + meetingId);
+    if (passcode) lines.push('- 암호: ' + passcode);
   }
+  lines.push('');
+  lines.push('■ 추가 안내사항');
+  lines.push('- 교육 시작 최소 15분 전 입장하시기를 권장합니다.');
+  lines.push('- 마이크와 카메라 점검을 미리 진행해주시기 바랍니다.');
+  lines.push('- 기술적인 문제가 발생하시면 교육 시작 전 충분한 시간을 두고 접속을 시도해주세요.');
+  lines.push('- 교육 중에는 주의 깊게 참여해주시고, 궁금한 사항은 실시간으로 질문해주시기 바랍니다.');
+  if (extraInfo) lines.push(extraInfo);
+  lines.push('');
+  lines.push('온라인 교육은 https://www.nanumcampus.com/main/index.jsp 에 공유되니 참조하세요.');
+  lines.push('');
+  lines.push('이번 교육이 여러분에게 의미 있는 학습 기회가 되기를 바랍니다. 교육에 대한 추가 문의사항이 있으시면 언제든지 연락주시기 바랍니다.');
+  lines.push('');
+  lines.push('감사합니다.');
+  lines.push('나눔경영컨설팅 김종혁 드림');
+
+  resultEl.value = lines.join('\n');
+  resultEl.classList.add('show');
+
+  // 메일 제목 자동 채우기
+  var subjectEl = document.getElementById('emailSubject');
+  if (!subjectEl.value) {
+    var dateStr = ev ? toKSTDate(ev['교육일자']).substring(5).replace('-', '월 ') + '일' : '';
+    subjectEl.value = '[안내] ' + dateStr + ' ' + (ev ? ev['교육명'] : '공개교육') + ' / 김종혁 드림';
+  }
+
+  toast('공지문이 생성되었습니다');
 };
 
 // ═══ 메일 발송 ═══
