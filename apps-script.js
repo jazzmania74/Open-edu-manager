@@ -65,6 +65,18 @@ function getSettings() {
   return settings;
 }
 
+// ── 전화번호 포맷팅 ──
+
+function formatPhone(s) {
+  if (!s) return '';
+  var digits = String(s).replace(/[^0-9]/g, '');
+  if (digits.length === 10 && digits.substring(0,2) === '10') digits = '0' + digits;
+  if (digits.length === 11 && digits.substring(0,3) === '010') {
+    return digits.substring(0,3) + '-' + digits.substring(3,7) + '-' + digits.substring(7);
+  }
+  return String(s);
+}
+
 function jsonResponse(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
@@ -111,6 +123,10 @@ function doPost(e) {
         return jsonResponse(prefillResponseSheetIds());
       case 'syncAllParticipants':
         return jsonResponse(syncAllParticipants());
+      case 'bulkUpdatePaymentByName':
+        return jsonResponse(bulkUpdatePaymentByName(body.eventId, body.names, body.paidDate));
+      case 'formatExistingPhones':
+        return jsonResponse(formatExistingPhones());
       default:
         return jsonResponse({ success: false, error: '알 수 없는 action: ' + action });
     }
@@ -273,7 +289,7 @@ function syncParticipants(eventId) {
       '교육ID': eventId,
       '타임스탬프': timestamp,
       '이름': String(row[nameCol] || '').trim(),
-      '전화번호': String(row[phoneCol] || '').trim(),
+      '전화번호': formatPhone(row[phoneCol]),
       '이메일': email,
       '소속': String(row[orgCol] || '').trim(),
       '신청글': String(row[textCol] || '').trim(),
@@ -438,7 +454,7 @@ function syncAllParticipants() {
           case '교육ID': return eventId;
           case '타임스탬프': return timestamp;
           case '이름': return String(row[nameCol] || '').trim();
-          case '전화번호': return String(row[phoneCol] || '').trim();
+          case '전화번호': return formatPhone(row[phoneCol]);
           case '이메일': return email;
           case '소속': return String(row[orgCol] || '').trim();
           case '신청글': return String(row[textCol] || '').trim();
@@ -462,6 +478,59 @@ function syncAllParticipants() {
 
   var totalAdded = allNewRows.length;
   return { success: true, action: 'syncAllParticipants', totalAdded: totalAdded, details: results };
+}
+
+// ── 이름 기반 일괄 입금 업데이트 ──
+
+function bulkUpdatePaymentByName(eventId, names, paidDate) {
+  var sheet = getSheetByName('참가자');
+  if (!sheet) return { success: false, error: '참가자 탭이 없습니다.' };
+  var headers = getHeaders(sheet);
+  var data = sheet.getDataRange().getValues();
+
+  var eidCol = headers.indexOf('교육ID');
+  var nameCol = headers.indexOf('이름');
+  var paidCol = headers.indexOf('입금여부');
+  var dateCol = headers.indexOf('입금일');
+
+  var nameSet = {};
+  names.forEach(function(n) { nameSet[String(n).trim()] = true; });
+
+  var updated = 0;
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][eidCol]) !== String(eventId)) continue;
+    var name = String(data[i][nameCol]).trim();
+    if (nameSet[name]) {
+      sheet.getRange(i + 1, paidCol + 1).setValue('Y');
+      sheet.getRange(i + 1, dateCol + 1).setValue(paidDate || '');
+      updated++;
+    }
+  }
+
+  return { success: true, action: 'bulkUpdatePaymentByName', updated: updated, total: names.length };
+}
+
+// ── 기존 전화번호 일괄 포맷팅 ──
+
+function formatExistingPhones() {
+  var sheet = getSheetByName('참가자');
+  if (!sheet) return { success: false, error: '참가자 탭이 없습니다.' };
+  var headers = getHeaders(sheet);
+  var phoneCol = headers.indexOf('전화번호');
+  if (phoneCol === -1) return { success: false, error: '전화번호 열이 없습니다.' };
+
+  var data = sheet.getDataRange().getValues();
+  var updated = 0;
+  for (var i = 1; i < data.length; i++) {
+    var raw = data[i][phoneCol];
+    var formatted = formatPhone(raw);
+    if (formatted !== String(raw)) {
+      sheet.getRange(i + 1, phoneCol + 1).setValue(formatted);
+      updated++;
+    }
+  }
+
+  return { success: true, action: 'formatExistingPhones', updated: updated };
 }
 
 // ── 일괄 메일 발송 ──

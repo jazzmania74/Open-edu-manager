@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>공개교육 참가자 관리기</title>
-<script>const APP_VER='20260312b';if(localStorage.getItem('oem_ver')!==APP_VER){localStorage.setItem('oem_ver',APP_VER);location.reload(true)}</script>
+<script>const APP_VER='20260312c';if(localStorage.getItem('oem_ver')!==APP_VER){localStorage.setItem('oem_ver',APP_VER);location.reload(true)}</script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -56,13 +56,14 @@ body{font-family:'Noto Sans KR',-apple-system,sans-serif;background:var(--bg);co
 .btn:disabled{opacity:.5;cursor:not-allowed}
 
 /* 통계 카드 */
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
 .stat-card{background:var(--surface);border-radius:var(--radius);padding:10px 12px;text-align:center;box-shadow:var(--shadow)}
 .stat-card .num{font-size:1.4rem;font-weight:700}
 .stat-card .label{font-size:.72rem;color:var(--text-sec);margin-top:2px}
 .stat-total .num{color:var(--primary)}
 .stat-paid .num{color:var(--green)}
 .stat-unpaid .num{color:var(--red)}
+.stat-revenue .num{color:var(--orange)}
 
 /* 참가자 테이블 */
 .table-wrap{overflow-x:auto;margin:10px 0;background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow)}
@@ -119,7 +120,7 @@ tr:hover{background:#f8fafc}
 
 /* 반응형 */
 @media(max-width:600px){
-  .stats{grid-template-columns:repeat(3,1fr);gap:4px}
+  .stats{grid-template-columns:repeat(4,1fr);gap:4px}
   .stat-card{padding:8px 6px}
   .event-bar{flex-direction:column}
   .event-bar select{min-width:100%}
@@ -192,6 +193,10 @@ tr:hover{background:#f8fafc}
     <div class="stat-card stat-total"><div class="num" id="statTotal">0</div><div class="label">전체 참가자</div></div>
     <div class="stat-card stat-paid"><div class="num" id="statPaid">0</div><div class="label">입금 완료</div></div>
     <div class="stat-card stat-unpaid"><div class="num" id="statUnpaid">0</div><div class="label">미입금</div></div>
+    <div class="stat-card stat-revenue"><div class="num" id="statRevenue">0</div><div class="label">매출(만원)</div></div>
+  </div>
+  <div style="text-align:right;margin:-4px 0 8px;font-size:.75rem;color:var(--text-sec)">
+    수강료: <input type="number" id="tuitionFee" value="50000" style="width:80px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;font-size:.75rem;text-align:right" onchange="saveTuition();updateStats()">원
   </div>
 
   <!-- 참가자 테이블 -->
@@ -305,11 +310,15 @@ var KEY_CLAUDE = 'oem_claude_key';
 var KEY_SCRIPT = 'oem_script_url';
 var KEY_EVENT = 'oem_selected_event';
 var KEY_ZOOM = 'oem_zoom_link';
+var KEY_TUITION = 'oem_tuition_fee';
 
 // ── 초기화 ──
 window.addEventListener('DOMContentLoaded', function() {
   updateApiStatus('claude');
   updateApiStatus('script');
+  // 수강료 복원
+  var savedTuition = localStorage.getItem(KEY_TUITION);
+  if (savedTuition) document.getElementById('tuitionFee').value = savedTuition;
   // Zoom 링크 복원
   var savedZoom = localStorage.getItem(KEY_ZOOM);
   if (savedZoom) document.getElementById('zoomLink').value = savedZoom;
@@ -365,6 +374,19 @@ function updateApiStatus(type) {
 
 function getScriptUrl() { return localStorage.getItem(KEY_SCRIPT) || ''; }
 function getClaudeKey() { return localStorage.getItem(KEY_CLAUDE) || ''; }
+
+// ═══ 전화번호 포맷팅 ═══
+function formatPhone(s) {
+  if (!s) return '';
+  var digits = String(s).replace(/[^0-9]/g, '');
+  // 10자리 + '10'으로 시작 → 앞에 0 추가
+  if (digits.length === 10 && digits.startsWith('10')) digits = '0' + digits;
+  // 11자리 010 → 010-XXXX-XXXX
+  if (digits.length === 11 && digits.startsWith('010')) {
+    return digits.substring(0,3) + '-' + digits.substring(3,7) + '-' + digits.substring(7);
+  }
+  return String(s);
+}
 
 // ═══ 날짜 헬퍼 (UTC→KST) ═══
 function toKSTDate(s) {
@@ -510,7 +532,7 @@ function renderTable() {
   empty.style.display = 'none';
 
   tbody.innerHTML = participants.map(function(p, i) {
-    var phone = esc(p['전화번호'] || '');
+    var phone = esc(formatPhone(p['전화번호']));
     var email = esc(p['이메일'] || '');
     var paid = p['입금여부'] === 'Y';
     var text = esc(p['신청글'] || '');
@@ -534,10 +556,17 @@ function renderTable() {
 function updateStats() {
   var total = participants.length;
   var paid = participants.filter(function(p){ return p['입금여부'] === 'Y'; }).length;
+  var tuition = Number(document.getElementById('tuitionFee').value) || 0;
+  var revenue = paid * tuition;
   document.getElementById('statTotal').textContent = total;
   document.getElementById('statPaid').textContent = paid;
   document.getElementById('statUnpaid').textContent = total - paid;
+  document.getElementById('statRevenue').textContent = (revenue / 10000).toLocaleString();
 }
+
+window.saveTuition = function() {
+  localStorage.setItem(KEY_TUITION, document.getElementById('tuitionFee').value);
+};
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
