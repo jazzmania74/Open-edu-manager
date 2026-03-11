@@ -325,6 +325,11 @@ window.saveApi = function(type) {
   localStorage.setItem(key, val);
   input.value = '';
   updateApiStatus(type);
+  // 저장 후 자동 닫기
+  var body = document.getElementById(type === 'claude' ? 'claudeBody' : 'scriptBody');
+  var toggle = document.getElementById(type === 'claude' ? 'claudeArrow' : 'scriptArrow').parentElement;
+  body.classList.remove('show');
+  toggle.classList.remove('open');
   toast((type === 'claude' ? 'Claude API 키' : 'Apps Script URL') + ' 저장됨');
   // 연결 후 이벤트 로드
   if (type === 'script') loadEvents();
